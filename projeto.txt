@@ -1,0 +1,761 @@
+# ForgeIQ — Manufacturing Intelligence & Data Quality Platform
+
+> End-to-end data platform for manufacturing analytics, machine health, production quality, maintenance intelligence and data quality monitoring.
+
+---
+
+## 📌 Sobre o Projeto
+
+**ForgeIQ** é uma plataforma de dados voltada para análise de operações industriais, combinando dados de máquinas, sensores, produção, qualidade e manutenção.
+
+O projeto será construído utilizando **dados públicos de manufatura**, unificados em um **modelo canônico de uma única fábrica fictícia** (unify-fiction strategy). Datasets de domínio compatível serão mapeados para as mesmas máquinas, linhas e produtos na camada Silver, preservando a proveniência real de cada registro no Bronze.
+
+A plataforma terá como objetivo demonstrar, em um único projeto, conceitos de:
+
+* Data Engineering
+* Data Quality
+* Data Modeling
+* Data Analytics
+* Industrial IoT Analytics
+* Anomaly Detection
+* Data Visualization
+* Pipeline Orchestration
+
+O projeto será desenvolvido utilizando **Python como linguagem principal**, com dashboards interativos construídos utilizando **Dash + Plotly**.
+
+---
+
+# 🎯 Problema
+
+Ambientes industriais modernos produzem grandes volumes de dados provenientes de diferentes sistemas e equipamentos.
+
+Sensores, máquinas, linhas de produção, inspeções de qualidade e sistemas de manutenção podem gerar informações em formatos e estruturas diferentes.
+
+Isso cria alguns problemas:
+
+### 1. Fragmentação dos dados
+
+Informações relevantes podem estar distribuídas em diferentes fontes:
+
+```text
+Machine Sensors
+       │
+       ├── Temperature
+       ├── Pressure
+       ├── Vibration
+       └── RPM
+
+Production
+       │
+       ├── Quantity
+       ├── Product
+       └── Production Line
+
+Quality
+       │
+       ├── Defects
+       ├── Inspection
+       └── Quality Status
+
+Maintenance
+       │
+       ├── Failures
+       ├── Repairs
+       └── Downtime
+```
+
+Sem uma camada de integração, torna-se difícil analisar a relação entre essas informações.
+
+### 2. Problemas de qualidade dos dados
+
+Dados industriais podem apresentar:
+
+* valores ausentes;
+* valores duplicados;
+* valores fora de domínio;
+* timestamps inválidos;
+* sensores com valores impossíveis;
+* inconsistências entre tabelas;
+* dados atrasados;
+* alterações de schema.
+
+Dados incorretos podem gerar análises incorretas e decisões operacionais equivocadas.
+
+### 3. Baixa visibilidade operacional
+
+Mesmo quando os dados existem, pode ser difícil responder perguntas como:
+
+* Qual linha de produção apresenta maior taxa de defeitos?
+* Quais máquinas possuem maior downtime?
+* Existe relação entre condições dos sensores e defeitos?
+* Quais máquinas apresentam comportamento anormal?
+* Como a qualidade da produção evolui ao longo do tempo?
+* A qualidade dos próprios dados está adequada para análise?
+
+---
+
+# 🎯 Objetivo
+
+O objetivo do **ForgeIQ** é construir uma plataforma de dados capaz de:
+
+1. Integrar datasets públicos de manufatura em um modelo canônico único;
+2. Criar pipelines de ingestão e processamento;
+3. Implementar uma arquitetura de dados em camadas;
+4. Aplicar regras automatizadas de Data Quality;
+5. Transformar dados brutos em modelos analíticos;
+6. Criar indicadores de produção, qualidade e manutenção;
+7. Identificar comportamentos anormais em máquinas;
+8. Disponibilizar os resultados através de dashboards interativos em Python;
+9. Demonstrar uma arquitetura próxima de um ambiente real de Data Engineering.
+
+---
+
+# 🏗️ Arquitetura
+
+A arquitetura será baseada em uma abordagem **Medallion Architecture**, com um único engine de processamento (Pandas + dbt/DuckDB) e orquestração leve.
+
+```text
+                 PUBLIC DATA SOURCES
+            (AI4I, CMAPSS, Quality Inspection)
+                         │
+              ┌──────────┼──────────┐
+              │          │          │
+              ▼          ▼          ▼
+           Sensors   Production   Quality
+              │          │          │
+              └──────────┼──────────┘
+                         │
+                         ▼
+                    INGESTION
+                  Python / Pandas
+                         │
+                         ▼
+                      BRONZE
+                Raw / Parquet + metadata
+                (fonte, batch_id, ingestion_ts)
+                         │
+                         ▼
+                    DATA QUALITY
+                  (Pandera + regras)
+                         │
+                ┌────────┴────────┐
+                │                 │
+                ▼                 ▼
+          Valid Records       Quarantine
+                │
+                ▼
+                     SILVER
+            Clean / Standardized
+        + ENTITY RESOLUTION
+      (modelo canônico da fábrica:
+       mesmas machines, lines, products)
+                         │
+                         ▼
+                   TRANSFORMATION
+                 dbt + DuckDB
+                         │
+                         ▼
+                       GOLD
+                 Analytical Models
+                         │
+              ┌──────────┴──────────┐
+              │                     │
+              ▼                     ▼
+          Analytics             Data Quality
+              │                     │
+              └──────────┬──────────┘
+                         ▼
+                      DuckDB
+                         │
+                         ▼
+                   Dash + Plotly
+```
+
+### Decisões de arquitetura
+
+| Decisão | Escolha | Justificativa |
+|---|---|---|
+| Processamento | Pandas | Volume cabe em RAM; PySpark só se provará necessário depois |
+| Transformação | dbt-core + DuckDB | Um único engine para transformação e consultas |
+| Storage | Parquet local | Camada de storage abstraida para migrar a S3/MinIO depois |
+| Orquestração | Cron / Prefect leve | Airflow é opcional, só se houver necessidade real |
+| Integração de fontes | Modelo canônico único | Entity resolution na Silver; proveniência preservada no Bronze |
+
+---
+
+# 📊 Dashboards
+
+O projeto terá **4 dashboards principais**. Mockups de referência em `dashboards_exemples/` e prompts de geração em `docs/dashboard_prompts.md`.
+
+## 1. Factory Overview
+
+Visão geral da operação industrial.
+
+### KPIs
+
+* Total Production *(derivado de units_inspected — MFG-004)*
+* Defect Rate
+* Downtime *(derivado: fim de vida/falha + janela de reparo fixa documentada)*
+* Machine Failures
+* Active Machines
+
+> **Fora do escopo:** Production Target e OEE — sem availability/performance/target nas fontes (ver Data Sources → Limitações conhecidas).
+
+### Análises
+
+* Production over time *(datas: MFG-004)*
+* Production by line *(MFG-004)*
+* Downtime by machine *(derivado)*
+* Defects by production line
+* Defects over time
+
+---
+
+## 2. Machine Health
+
+Monitoramento individual das máquinas.
+
+O usuário poderá selecionar uma máquina e analisar seu comportamento.
+
+> Pré-requisito: o módulo de Anomaly Detection deve estar pronto antes desta fase (Phase 5.5).
+
+### Indicadores
+
+* Temperature *(AI4I, CMAPSS)*
+* Pressure *(CMAPSS)*
+* RPM *(AI4I, CMAPSS)*
+* Torque *(AI4I)*
+* Tool wear *(AI4I — substitui vibration, que não existe nas fontes)*
+* Utilization *(derivada de cycles — CMAPSS)*
+* Failure history *(AI4I, CMAPSS)*
+* Anomaly score *(nosso módulo)*
+
+### Análises
+
+* Sensor trends
+* Machine utilization
+* Operating conditions
+* Anomalies over time
+* Machine comparison
+
+---
+
+## 3. Quality Intelligence
+
+Dashboard focado na qualidade da produção.
+
+### KPIs
+
+* Defect Rate
+* First Pass Yield
+* Scrap Rate
+* Rework Rate
+* Total Defects
+
+### Análises
+
+* Defects by product
+* Defects by machine
+* Defects by production line
+* Defects by type
+* Quality trends
+* Sensor conditions vs defects
+
+O objetivo é permitir investigar possíveis relações entre **condições operacionais e qualidade da produção**.
+
+---
+
+## 4. Data Quality & Maintenance
+
+Dashboard dividido em duas áreas.
+
+### Data Quality
+
+Indicadores:
+
+* **DQ Score composto** *(KPI de primeira classe)*
+* Completeness
+* Validity
+* Uniqueness
+* Consistency
+* Freshness
+
+Também serão apresentados:
+
+* Data Quality incidents
+* Invalid records
+* Quarantined records
+* Failed validation rules
+* DQ trends
+
+### Maintenance
+
+Indicadores:
+
+* MTBF *(CMAPSS: ciclos entre eventos de falha)*
+* Downtime *(derivado — premissa documentada)*
+* Failure Count *(AI4I, CMAPSS)*
+
+> **Fora do escopo:** MTTR e Preventive × Corrective — sem duração de reparo nem classificação de manutenção nas fontes.
+
+---
+
+# 🧪 Data Quality
+
+A qualidade dos dados será tratada como uma parte central do projeto.
+
+O catálogo de regras será **versionado desde a Phase 1** (arquivo `data_quality/rules/` no repositório, com id, versão, dimensão e severidade por regra).
+
+Dimensões avaliadas:
+
+| Dimensão | Exemplo de regra |
+|---|---|
+| Completeness | `machine_id IS NOT NULL`, `timestamp IS NOT NULL` |
+| Validity | `temperature within range`, `rpm >= 0`, `pressure >= 0`, `production_quantity >= 0` |
+| Consistency | `maintenance_end >= maintenance_start`, `production_quantity >= defect_quantity` |
+| Uniqueness | chaves compostas (ex: `machine_id + timestamp`) |
+| Referential Integrity | `fact_*.machine_id` existe em `dim_machine.machine_id` |
+| Freshness | tempo desde a última atualização de cada fonte |
+
+O **DQ Score composto** agrega as dimensões em um índice único (pesos documentados) e é exibido como KPI raiz no dashboard 4.
+
+---
+
+# 📦 Data Sources
+
+Três datasets públicos, unificados em um **modelo canônico de uma única fábrica fictícia** (unify-fiction strategy).
+
+### Datasets oficiais
+
+| # | Dataset | Papel no ForgeIQ | Origem |
+|---|---|---|---|
+| 1 | **AI4I 2020 Predictive Maintenance** | Sensores (temp, RPM, torque, tool wear) + falhas (5 modos) | UCI #601 |
+| 2 | **NASA CMAPSS FD001** | Frota de unidades (100 engines), séries temporais por cycle, sensores de pressão/temperatura, run-to-failure | NASA Prognostics Data Repository |
+| 3 | **MFG-004 Quality Control sample** | Qualidade: units inspected/accepted/rejected, defect type/severity, disposition (scrap/rework), line/shift | Hugging Face (`xpertsystems/mfg004-sample`) |
+
+**Decisão MFG-004 vs Kaggle MLCC:** MFG-004 foi escolhido por download direto sem autenticação e cobrir FPY/scrap/rework/defect type. MLCC é candidato futuro se precisar de `machine_id` na qualidade.
+
+**CMAPSS:** apenas **FD001** na fase inicial (1 condição, 1 fault mode). FD002 fica como extensão opcional.
+
+### Unify-fiction strategy
+
+1. Cada dataset entra no Bronze com proveniência real (`source`, `batch_id`, `ingestion_timestamp`);
+2. Na Silver, **entity resolution** mapeia registros para um modelo canônico:
+   - `machine_id` canônico (`M0001…`) ← `unit_id` (CMAPSS), `UDI`/`Product ID` (AI4I), `machine`/linha (MFG-004) conforme regra documentada;
+   - `event_time` sintético documentado onde a fonte não tem timestamp (ex: AI4I usa ordinal sequencial mapeado para janela de tempo fixa — premissa explícita no data dictionary);
+3. Fábrica canônica: 1 linha de qualidade + frota de máquinas única.
+
+O desafio técnico central é **entity resolution & standardization** — não simular que datasets diferentes são a mesma fábrica sem regra.
+
+### Limitações conhecidas (KPIs)
+
+| KPI original | Decisão |
+|---|---|
+| Production Target | **Removido** — sem fonte |
+| OEE | **Removido** do KPI raiz — availability/performance não existem nas fontes |
+| Vibration | **Removido** — substituído por Tool wear (AI4I) / sensores CMAPSS |
+| MTTR | **Removido** — sem duração de reparo na fonte |
+| Preventive × Corrective Maintenance | **Removido** — sem eventos de manutenção classificados |
+| Downtime | **Mantido como derivado** — fim de vida/falha + janela de reparo fixa (premissa documentada) |
+
+### Documentação por fonte
+
+Cada fonte será documentada individualmente em `docs/data_sources.md`, incluindo:
+
+* origem;
+* licença;
+* descrição;
+* estrutura;
+* periodicidade;
+* limitações;
+* transformações realizadas.
+
+---
+
+# 🗄️ Data Layers
+
+## Bronze
+
+Objetivo:
+
+> Preservar os dados originais.
+
+Características:
+
+* formato Parquet;
+* mínima transformação;
+* metadata de ingestão;
+* identificação da fonte;
+* batch ID;
+* ingestion timestamp.
+
+---
+
+## Silver
+
+Objetivo:
+
+> Criar dados limpos, padronizados e confiáveis no modelo canônico da fábrica.
+
+Processos:
+
+* schema validation;
+* tratamento de tipos;
+* padronização de timestamps;
+* remoção/controlação de duplicidades;
+* tratamento de valores inválidos;
+* normalização;
+* **entity resolution** (mapear registros de diferentes fontes para as mesmas machines/lines/products);
+* enriquecimento.
+
+Registros inválidos poderão ser enviados para uma camada de **quarantine**.
+
+---
+
+## Gold
+
+Objetivo:
+
+> Criar modelos preparados para análise.
+
+Tabelas:
+
+```text
+dim_machine
+dim_product
+dim_production_line
+dim_date
+dim_defect
+dim_maintenance
+
+fact_sensor_reading
+fact_production
+fact_quality
+fact_maintenance   -- inclui downtime como métrica/marco desta fato
+```
+
+> `downtime` é tratado como parte de `fact_maintenance` (eventos e durações), não como fato separado — evita duplicação de grão.
+
+---
+
+# 📄 Data Contracts
+
+Contratos de dados versionados entre camadas, com schemas validados automaticamente:
+
+| Contrato | De → Para | Conteúdo |
+|---|---|---|
+| `contract_bronze_silver` | Bronze → Silver | schema esperado, tipos, regras de completeness/validity |
+| `contract_silver_gold` | Silver → Gold | chaves estrangeiras, grãos, métricas derivadas |
+
+* Schemas versionados (ex: JSON Schema ou Pandera models com versão).
+* Quebra de contrato = falha de pipeline + registro de incidente de DQ.
+
+---
+
+# 📈 Reprodutibilidade
+
+* Scripts de download/seed dos datasets públicos (sem depender de URLs instáveis).
+* Versionamento de snapshots dos dados brutos (ou checksums + data de acesso).
+* `README.md` com comandos para rodar o pipeline do zero.
+* Ambiente reproduzível via Docker Compose.
+
+---
+
+# 🔬 Analytics
+
+Serão desenvolvidos indicadores como:
+
+### Production
+
+```text
+Production Volume
+Production Rate
+Target Achievement
+```
+
+### Quality
+
+```text
+Defect Rate
+First Pass Yield
+Scrap Rate
+Rework Rate
+```
+
+### Maintenance
+
+```text
+MTBF
+Downtime (derivado)
+Failure Rate
+```
+
+> MTTR e Preventive/Corrective fora do escopo (sem dado na fonte — ver Data Sources).
+
+### Machine
+
+```text
+Utilization
+Operating Time
+Anomaly Score
+```
+
+### Data Quality
+
+```text
+DQ Score (composto)
+Completeness / Validity / Uniqueness / Consistency / Freshness
+```
+
+---
+
+# 🤖 Anomaly Detection
+
+Após a construção da camada analítica (**Phase 5.5 — antes do dashboard Machine Health**), será implementado o módulo de detecção de anomalias.
+
+Possíveis abordagens:
+
+* Statistical Detection
+* Isolation Forest
+* Z-Score
+* Rolling Statistics
+
+O objetivo não será afirmar que uma máquina necessariamente irá falhar.
+
+O objetivo será identificar:
+
+> **comportamentos que fogem do padrão histórico esperado.**
+
+Exemplo:
+
+```text
+Machine M102
+
+Temperature       ↑
+Vibration         ↑
+RPM               ↑
+Pressure          normal
+
+Anomaly Score: 0.91
+```
+
+---
+
+# 🐍 Technology Stack
+
+## Programming
+
+* Python
+* SQL
+
+## Data Processing
+
+* Pandas
+* PyArrow
+* *(PySpark: opcional / futuro — só se o volume exigir)*
+
+## Storage
+
+* Parquet local
+* *(S3/MinIO: opcional / futuro — storage abstraído)*
+
+## Analytics & Transformation
+
+* DuckDB
+* dbt-core (backend DuckDB)
+
+## Data Quality
+
+* Pandera
+* dbt tests
+* custom validation rules (catálogo versionado)
+
+## Visualization
+
+* Dash
+* Plotly
+
+## Orchestration
+
+* Cron / Prefect leve
+* *(Apache Airflow: opcional — só se houver necessidade real de orquestração distribuída)*
+
+## Infrastructure
+
+* Docker
+* Docker Compose
+
+## CI/CD
+
+* GitHub Actions
+
+---
+
+# 📁 Project Structure
+
+```text
+forgeiq/
+│
+├── ingestion/
+│   ├── sources/
+│   └── pipelines/
+│
+├── data_quality/
+│   ├── rules/
+│   ├── schemas/
+│   └── quarantine/
+│
+├── transformation/
+│   └── dbt/            # dbt-core com backend DuckDB
+│
+├── analytics/
+│
+├── anomaly_detection/
+│
+├── dashboard/
+│   ├── app.py
+│   ├── pages/
+│   │   ├── factory.py
+│   │   ├── machines.py
+│   │   ├── quality.py
+│   │   └── data_quality.py
+│   │
+│   └── components/
+│
+├── orchestration/      # cron / Prefect (Airflow opcional)
+│
+├── tests/
+│
+├── docs/
+│   ├── architecture.md
+│   ├── data_dictionary.md
+│   ├── data_sources.md
+│   ├── data_quality.md
+│   ├── data_contracts.md
+│   └── dashboard_prompts.md
+│
+├── dashboards_exemples/   # mockups de referência
+│
+├── docker-compose.yml
+├── requirements.txt
+└── README.md
+```
+
+---
+
+# 🚧 Development Roadmap
+
+Cada fase inclui um **critério de pronto (DoD)**.
+
+## Phase 1 — Data Discovery
+
+* [x] Selecionar datasets canônicos: AI4I (UCI), CMAPSS FD001 (NASA), MFG-004 sample (HF)
+* [ ] Documentar fontes
+* [ ] Avaliar schemas
+* [ ] Identificar chaves e plano de entity resolution
+* [ ] Identificar problemas de qualidade
+* [ ] Iniciar catálogo de regras de DQ (versão 0)
+
+**DoD:** `docs/data_sources.md` completo; dicionário de dados inicial; lista de regras de DQ v0.
+
+## Phase 2 — Ingestion + CI/CD inicial
+
+* [ ] Criar ingestion scripts
+* [ ] Implementar metadata (source, batch_id, ingestion_ts)
+* [ ] Salvar dados em Parquet
+* [ ] Criar Bronze layer
+* [ ] Tests de ingestion e schema (pytest)
+* [ ] GitHub Actions básico (lint + tests)
+
+**DoD:** pipeline Bronze reproduzível do zero; CI verde no repositório.
+
+## Phase 3 — Data Quality
+
+* [ ] Schema validation (Pandera)
+* [ ] Completeness checks
+* [ ] Validity checks
+* [ ] Duplicate detection
+* [ ] Referential integrity
+* [ ] Quarantine layer
+* [ ] Catálogo de regras versionado (id, versão, dimensão, severidade)
+
+**DoD:** registros inválidos vão para quarantine; relatório de DQ gerado por execução.
+
+## Phase 4 — Transformation
+
+* [ ] Criar Silver layer (limpa + entity resolution)
+* [ ] Criar Gold layer (dbt + DuckDB)
+* [ ] Criar dimensional model
+* [ ] Criar métricas industriais
+* [ ] Data contracts Bronze→Silver e Silver→Gold
+
+**DoD:** modelos Gold consultáveis via DuckDB; contracts validados nos tests.
+
+## Phase 5 — Dashboard
+
+* [ ] Factory Overview
+* [ ] Quality Intelligence
+* [ ] Data Quality & Maintenance (com DQ Score como KPI raiz)
+
+**DoD:** 3 dashboards funcionais com KPIs reais da camada Gold.
+
+## Phase 5.5 — Anomaly Detection
+
+* [ ] Statistical Detection / Isolation Forest / Z-Score / Rolling Statistics
+* [ ] Anomaly score por máquina
+* [ ] Integração com camada Gold
+
+**DoD:** anomaly score disponível como métrica para o dashboard Machine Health.
+
+## Phase 6 — Dashboard: Machine Health
+
+* [ ] Machine Health (usa anomaly score da Phase 5.5)
+* [ ] Sensor trends, utilization, comparison
+
+**DoD:** 4º dashboard completo com anomaly score.
+
+## Phase 7 — Orchestration
+
+* [ ] Docker / Docker Compose
+* [ ] Orquestração leve (cron/Prefect) com pipeline agendado
+* [ ] Pipeline monitoring
+* *(Airflow: opcional, avaliar só se necessário)*
+
+**DoD:** pipeline roda agendado via comando único; logs e status visíveis.
+
+## Phase 8 — Advanced Analytics & CI/CD completo
+
+* [ ] Sensor analysis
+* [ ] Machine behavior analysis
+* [ ] Quality correlation analysis
+* [ ] Data tests (dbt tests)
+* [ ] Pipeline tests
+* [ ] GitHub Actions completo (lint, unit, data tests)
+
+**DoD:** CI completo; análises de correlação documentadas.
+
+---
+
+# 🎯 Final Goal
+
+O objetivo final do **ForgeIQ** é demonstrar uma solução completa de **Manufacturing Data Engineering & Analytics**, capaz de transformar dados industriais brutos e heterogêneos em informações confiáveis para análise operacional.
+
+O projeto deverá demonstrar:
+
+```text
+Raw Data
+   ↓
+Data Engineering
+   ↓
+Data Quality
+   ↓
+Data Modeling
+   ↓
+Analytics
+   ↓
+Visualization
+   ↓
+Anomaly Detection
+```
+
+Mais do que um projeto de Machine Learning ou um dashboard, o **ForgeIQ** será desenvolvido como uma **mini plataforma de dados industrial end-to-end**, com foco em qualidade, rastreabilidade, escalabilidade e análise operacional.

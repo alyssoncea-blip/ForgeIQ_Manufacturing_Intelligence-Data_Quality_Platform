@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Ruff
+        run: ruff check ingestion data_quality analytics anomaly_detection dashboard tests
+
+      - name: Download datasets (CI cache-friendly)
+        run: python -m ingestion.sources.download_all
+
+      - name: Pytest
+        run: pytest -q

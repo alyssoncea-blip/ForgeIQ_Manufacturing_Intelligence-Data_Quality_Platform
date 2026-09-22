@@ -17,7 +17,15 @@ def silver_tables():
 
 @pytest.fixture(scope="module")
 def gold():
-    return gold_tables()
+    from anomaly_detection.iforest import run as anomaly_run
+    from ingestion.pipelines import silver as silver_mod
+
+    if not (silver_mod.SILVER_DIR / "fact_quality.parquet").exists():
+        silver_mod.run()
+    anomaly_run()
+    result = gold_tables()
+    assert result is not None, "gold_tables() must return a dict"
+    return result
 
 
 def test_silver_three_tables(silver_tables):

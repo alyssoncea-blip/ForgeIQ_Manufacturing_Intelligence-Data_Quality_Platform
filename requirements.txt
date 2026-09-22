@@ -1,6 +1,7 @@
 pandas>=2.0
 pyarrow>=14.0
 pandera>=0.18
+scikit-learn>=1.4
 duckdb>=0.10
 plotly>=5.18
 dash>=2.16

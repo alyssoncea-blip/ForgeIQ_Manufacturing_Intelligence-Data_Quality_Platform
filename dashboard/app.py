@@ -129,7 +129,7 @@ def _page_overview() -> html.Div:
         paper_bgcolor=C["panel"],
         plot_bgcolor=C["panel"],
         font_color=C["text"],
-        legendOrientation="h",
+        legend=dict(orientation="h"),
         margin=dict(t=30, b=10, l=10, r=10),
         height=320,
     )
@@ -205,7 +205,7 @@ def _page_quality() -> html.Div:
         plot_bgcolor=C["panel"],
         font_color=C["text"],
         yaxis_tickformat=".1%",
-        legendOrientation="h",
+        legend=dict(orientation="h"),
         margin=dict(t=30, b=10, l=10, r=10),
         height=340,
     )
@@ -315,8 +315,6 @@ def _page_health() -> html.Div:
 
 
 def _page_dq() -> html.Div:
-    import json
-
     report = _latest_report()
     if report is None:
         return html.Div(
@@ -337,12 +335,13 @@ def _page_dq() -> html.Div:
                 }
             )
     rules_df = pd.DataFrame(rows)
+    rules_df["one"] = 1
 
     color_map = {"PASS": C["green"], "FAIL": C["red"]}
     fig = px.bar(
         rules_df.sort_values(["table", "rule"]),
         x="rule",
-        y=1,
+        y="one",
         color="passed",
         color_discrete_map=color_map,
         labels={"y": "", "rule": "Rule"},
@@ -418,10 +417,7 @@ def _page_dq() -> html.Div:
 
     return html.Div(
         [
-            html.Div(
-                [score_card],
-                style={"gridColumn": "1 / -1"},
-            ),
+            html.Div([score_card], style={"gridColumn": "1 / -1"}),
             html.Div(
                 table_cards,
                 style={
@@ -495,7 +491,7 @@ def anomaly_timeline(anomaly: pd.DataFrame, palette: dict) -> go.Figure:
         plot_bgcolor=palette["panel"],
         font_color=palette["text"],
         yaxis_tickformat=".1%",
-        legendOrientation="h",
+        legend=dict(orientation="h"),
         margin=dict(t=10, b=10, l=10, r=10),
         height=340,
     )

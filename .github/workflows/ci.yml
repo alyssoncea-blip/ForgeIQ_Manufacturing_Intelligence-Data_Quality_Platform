@@ -26,14 +26,10 @@ jobs:
       - name: Download datasets (CI cache-friendly)
         run: python -m ingestion.sources.download_all
 
-      - name: Run pipelines (Silver → anomalies → Gold)
+      - name: Run full pipeline (Bronze → DQ → Silver → anomalies → Gold)
         run: |
-          python -m ingestion.pipelines.silver
-          python -m anomaly_detection.iforest
-          python -m analytics.gold
-
-      - name: Run pipelines (Silver → anomalies → Gold)
-        run: |
+          python -m ingestion.pipelines.bronze
+          python -m data_quality.pipeline
           python -m ingestion.pipelines.silver
           python -m anomaly_detection.iforest
           python -m analytics.gold

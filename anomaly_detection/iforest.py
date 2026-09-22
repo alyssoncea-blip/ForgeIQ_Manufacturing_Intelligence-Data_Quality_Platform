@@ -4,8 +4,6 @@ Phase 5.5 in roadmap (per approved projeto.txt). Outputs scored frames for Gold.
 """
 from __future__ import annotations
 
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import IsolationForest

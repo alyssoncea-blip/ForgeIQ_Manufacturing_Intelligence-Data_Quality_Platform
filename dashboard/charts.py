@@ -72,7 +72,7 @@ def anomaly_overview_card(anomaly: pd.DataFrame, palette: dict) -> go.Figure:
         plot_bgcolor=palette["panel"],
         font_color=palette["text"],
         yaxis_tickformat=".1%",
-        legendOrientation="h",
+        legend=dict(orientation="h"),
         margin=dict(t=10, b=10, l=10, r=10),
         height=280,
     )
@@ -145,7 +145,7 @@ def line_fpy_card(production: pd.DataFrame, palette: dict) -> go.Figure:
         plot_bgcolor=palette["panel"],
         font_color=palette["text"],
         yaxis_tickformat=".1%",
-        legendOrientation="h",
+        legend=dict(orientation="h"),
         margin=dict(t=10, b=10, l=10, r=10),
         height=300,
     )

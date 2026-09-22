@@ -5,6 +5,7 @@ import pytest
 
 from analytics.gold import gold_tables, write_gold
 from dashboard.app import PAGES, _latest_report, app
+from ingestion.paths import SILVER_DIR
 from ingestion.pipelines import bronze, silver
 
 
@@ -14,8 +15,7 @@ def gold():
 
     if not (bronze.BRONZE_DIR / "ai4i_2020.parquet").exists():
         bronze.run()
-    if not (silver.SILVER_DIR / "fact_quality.parquet").exists():
-        silver.run()
+    silver.run()
     anomaly_run()
     write_gold()
     result = gold_tables()
@@ -55,3 +55,8 @@ def test_kpi_summary_has_required_keys(gold):
     kpis = set(gold["kpi_summary"]["kpi"])
     for key in ("first_pass_yield", "defect_rate", "machine_failures_ai4i"):
         assert key in kpis
+
+
+def test_silver_anomaly_files_exist(gold):
+    assert (SILVER_DIR / "fact_anomaly_ai4i.parquet").exists()
+    assert (SILVER_DIR / "fact_anomaly_cmapss.parquet").exists()

@@ -70,7 +70,10 @@ def _latest_report() -> dict | None:
 def _panel(title: str, graph) -> html.Div:
     return html.Div(
         [
-            html.Div(title, style={"color": C["muted"], "fontSize": "13px", "marginBottom": "6px"}),
+            html.Div(
+                title,
+                style={"color": C["muted"], "fontSize": "13px", "marginBottom": "6px"},
+            ),
             graph,
         ],
         style={
@@ -169,7 +172,10 @@ def _page_overview() -> html.Div:
             ),
             html.Div(
                 [
-                    _panel("Production units (accepted / rejected)", dcc.Graph(figure=fig_prod)),
+                    _panel(
+                        "Production units (accepted / rejected)",
+                        dcc.Graph(figure=fig_prod),
+                    ),
                     _panel("Top failure modes (AI4I)", dcc.Graph(figure=fig_fail)),
                 ],
                 style={
@@ -274,7 +280,10 @@ def _page_health() -> html.Div:
     maint_summary = (
         maint[maint["event_type"] == "ai4i_failure"]
         .groupby("failure_modes")
-        .agg(events=("event_type", "count"), downtime=("downtime_hours_estimated", "sum"))
+        .agg(
+            events=("event_type", "count"),
+            downtime=("downtime_hours_estimated", "sum"),
+        )
         .sort_values("events", ascending=False)
         .head(6)
         .reset_index()
@@ -297,11 +306,20 @@ def _page_health() -> html.Div:
 
     return html.Div(
         [
-            _panel("Fleet RUL (CMAPSS FD001 — sample units)", dcc.Graph(figure=fig_rul)),
+            _panel(
+                "Fleet RUL (CMAPSS FD001 — sample units)",
+                dcc.Graph(figure=fig_rul),
+            ),
             html.Div(
                 [
-                    _panel("Anomaly score timeline", dcc.Graph(figure=fig_anom)),
-                    _panel("Downtime estimate by failure mode", dcc.Graph(figure=fig_down)),
+                    _panel(
+                        "Anomaly score timeline",
+                        dcc.Graph(figure=fig_anom),
+                    ),
+                    _panel(
+                        "Downtime estimate by failure mode",
+                        dcc.Graph(figure=fig_down),
+                    ),
                 ],
                 style={
                     "display": "grid",
@@ -331,17 +349,16 @@ def _page_dq() -> html.Div:
                     "rule": rule["rule_id"],
                     "severity": rule["severity"],
                     "passed": "PASS" if rule["passed"] else "FAIL",
-                    "message": rule.get("message", ""),
                 }
             )
     rules_df = pd.DataFrame(rows)
-    rules_df["one"] = 1
+    rules_df["value"] = 1
 
     color_map = {"PASS": C["green"], "FAIL": C["red"]}
     fig = px.bar(
         rules_df.sort_values(["table", "rule"]),
         x="rule",
-        y="one",
+        y="value",
         color="passed",
         color_discrete_map=color_map,
         labels={"y": "", "rule": "Rule"},
@@ -368,10 +385,17 @@ def _page_dq() -> html.Div:
         table_cards.append(
             html.Div(
                 [
-                    html.Div(table, style={"color": C["muted"], "fontSize": "13px"}),
+                    html.Div(
+                        table,
+                        style={"color": C["muted"], "fontSize": "13px"},
+                    ),
                     html.Div(
                         f"{info['rows']:,} rows · Q:{info['quarantined_rows']}",
-                        style={"color": C["text"], "fontSize": "14px", "marginTop": "4px"},
+                        style={
+                            "color": C["text"],
+                            "fontSize": "14px",
+                            "marginTop": "4px",
+                        },
                     ),
                     html.Div(
                         f"score {info['dq_score_error_rules']:.2f}",
@@ -393,10 +417,17 @@ def _page_dq() -> html.Div:
 
     score_card = html.Div(
         [
-            html.Div("Overall DQ Score", style={"color": C["muted"], "fontSize": "13px"}),
+            html.Div(
+                "Overall DQ Score",
+                style={"color": C["muted"], "fontSize": "13px"},
+            ),
             html.Div(
                 f"{score:.0%}",
-                style={"color": score_color, "fontSize": "42px", "fontWeight": "700"},
+                style={
+                    "color": score_color,
+                    "fontSize": "42px",
+                    "fontWeight": "700",
+                },
             ),
             html.Div(
                 f"{report['rules_passed']}/{report['rules_total']} rules passed",
@@ -404,7 +435,11 @@ def _page_dq() -> html.Div:
             ),
             html.Div(
                 f"batch {report['batch_id']}",
-                style={"color": C["muted"], "fontSize": "11px", "marginTop": "6px"},
+                style={
+                    "color": C["muted"],
+                    "fontSize": "11px",
+                    "marginTop": "6px",
+                },
             ),
         ],
         style={
@@ -417,14 +452,13 @@ def _page_dq() -> html.Div:
 
     return html.Div(
         [
-            html.Div([score_card], style={"gridColumn": "1 / -1"}),
+            score_card,
             html.Div(
                 table_cards,
                 style={
                     "display": "grid",
                     "gridTemplateColumns": "repeat(3, 1fr)",
                     "gap": "12px",
-                    "gridColumn": "1 / -1",
                 },
             ),
             _panel("Rule status", dcc.Graph(figure=fig)),
@@ -463,7 +497,11 @@ def _page_dq() -> html.Div:
                         ]
                     ),
                 ],
-                style={"width": "100%", "borderCollapse": "collapse", "fontSize": "13px"},
+                style={
+                    "width": "100%",
+                    "borderCollapse": "collapse",
+                    "fontSize": "13px",
+                },
             ),
         ],
         style={"display": "grid", "gap": "16px"},
@@ -521,7 +559,10 @@ def _layout() -> html.Div:
                         [
                             html.Span(
                                 "FORGE",
-                                style={"fontWeight": "800", "letterSpacing": "0.12em"},
+                                style={
+                                    "fontWeight": "800",
+                                    "letterSpacing": "0.12em",
+                                },
                             ),
                             html.Span(
                                 "IQ",
@@ -536,7 +577,11 @@ def _layout() -> html.Div:
                     ),
                     html.Div(
                         "Manufacturing Intelligence · Data Quality",
-                        style={"color": C["muted"], "fontSize": "12px", "marginLeft": "14px"},
+                        style={
+                            "color": C["muted"],
+                            "fontSize": "12px",
+                            "marginLeft": "14px",
+                        },
                     ),
                     html.Nav(
                         [
@@ -561,7 +606,11 @@ def _layout() -> html.Div:
             ),
             html.Div(
                 id="content",
-                style={"padding": "20px 24px", "maxWidth": "1440px", "margin": "0 auto"},
+                style={
+                    "padding": "20px 24px",
+                    "maxWidth": "1440px",
+                    "margin": "0 auto",
+                },
             ),
         ],
         style={

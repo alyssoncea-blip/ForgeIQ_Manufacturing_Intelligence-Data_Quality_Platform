@@ -111,6 +111,30 @@ def gold_tables() -> dict[str, pd.DataFrame]:
 
     mtbf_cycles = float(cmapss.groupby("unit_id")["cycle"].max().mean())
 
+    # --- fact_anomaly (if anomaly outputs exist) ---
+    anomaly_frames = []
+    for src, path in [
+        ("ai4i", SILVER_DIR / "fact_anomaly_ai4i.parquet"),
+        ("cmapss", SILVER_DIR / "fact_anomaly_cmapss.parquet"),
+    ]:
+        if path.exists():
+            adf = pd.read_parquet(path)
+            adf["source"] = src
+            anomaly_frames.append(adf)
+
+    if anomaly_frames:
+        fact_anomaly = pd.concat(anomaly_frames, ignore_index=True, sort=False)
+    else:
+        fact_anomaly = pd.DataFrame(
+            columns=[
+                "machine_id",
+                "event_time",
+                "anomaly_score",
+                "is_anomaly",
+                "source",
+            ]
+        )
+
     kpi_summary = pd.DataFrame(
         [
             {
@@ -166,7 +190,40 @@ def gold_tables() -> dict[str, pd.DataFrame]:
         ]
     )
 
-    # --- KPI summary (factory overview grain) ---
+    # anomaly KPIs (conditional on outputs existing)
+    if len(fact_anomaly):
+        kpi_summary = pd.concat(
+            [
+                kpi_summary,
+                pd.DataFrame(
+                    [
+                        {
+                            "kpi": "anomaly_rate",
+                            "value": round(float(fact_anomaly["is_anomaly"].mean()), 6),
+                            "status": "ok",
+                        },
+                        {
+                            "kpi": "anomaly_events",
+                            "value": int(fact_anomaly["is_anomaly"].sum()),
+                            "status": "ok",
+                        },
+                    ]
+                ),
+            ],
+            ignore_index=True,
+        )
+
+    return {
+        "dim_date": dim_date,
+        "dim_machine": dim_machine,
+        "dim_product": dim_product,
+        "dim_line": dim_line,
+        "fact_production": fact_production,
+        "fact_quality": fact_quality,
+        "fact_maintenance": fact_maintenance,
+        "fact_anomaly": fact_anomaly,
+        "kpi_summary": kpi_summary,
+    }
 
 
 def write_gold() -> dict:

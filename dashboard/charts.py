@@ -10,7 +10,10 @@ from dash import html
 def html_card(label: str, value: str, color: str, palette: dict) -> html.Div:
     return html.Div(
         [
-            html.Div(label, style={"color": palette["muted"], "fontSize": "12px"}),
+            html.Div(
+                label,
+                style={"color": palette["muted"], "fontSize": "12px"},
+            ),
             html.Div(
                 value,
                 style={
@@ -35,7 +38,12 @@ def quality_kpi_row(kmap: dict, palette: dict) -> list:
         ("FPY", kmap.get("first_pass_yield"), "{:.1%}", palette["cyan"]),
         ("Defect rate", kmap.get("defect_rate"), "{:.2%}", palette["red"]),
         ("Scrap rate", kmap.get("scrap_rate"), "{:.1%}", palette["amber"]),
-        ("Failures", kmap.get("machine_failures_ai4i"), "{:,.0f}", palette["amber"]),
+        (
+            "Failures",
+            kmap.get("machine_failures_ai4i"),
+            "{:,.0f}",
+            palette["amber"],
+        ),
         (
             "Downtime h",
             kmap.get("downtime_hours_estimated"),
@@ -46,7 +54,11 @@ def quality_kpi_row(kmap: dict, palette: dict) -> list:
     cards = []
     for label, row, fmt, color in metrics:
         value = "—" if row is None else fmt.format(row.value)
-        status = "" if row is None or getattr(row, "status", "ok") == "ok" else " · est"
+        status = (
+            ""
+            if row is None or getattr(row, "status", "ok") == "ok"
+            else " · est"
+        )
         cards.append(html_card(label, value + status, color, palette))
     return cards
 

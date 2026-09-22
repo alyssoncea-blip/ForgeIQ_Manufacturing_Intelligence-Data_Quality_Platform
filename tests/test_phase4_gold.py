@@ -71,6 +71,7 @@ def test_gold_tables_present(gold):
         "fact_production",
         "fact_quality",
         "fact_maintenance",
+        "fact_anomaly",
         "kpi_summary",
     }
     assert set(gold) == expected

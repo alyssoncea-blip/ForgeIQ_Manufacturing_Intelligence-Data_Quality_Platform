@@ -11,14 +11,13 @@ from dash import Dash, Input, Output, callback, ctx, dcc, html
 from dashboard.charts import (
     anomaly_overview_card,
     cmapss_health_card,
-    dq_overview_card,
-    failure_modes_card,
-    line_fpy_card,
     quality_kpi_row,
 )
 
-GOLD = Path(__file__).resolve().parents[1] / "data" / "gold"
-QUARANTINE = Path(__file__).resolve().parents[1] / "data" / "quarantine"
+ROOT = Path(__file__).resolve().parents[1]
+GOLD = ROOT / "data" / "gold"
+SILVER = ROOT / "data" / "silver"
+QUARANTINE = ROOT / "data" / "quarantine"
 
 C = {
     "bg": "#12161C",
@@ -30,6 +29,28 @@ C = {
     "text": "#E6EAF0",
     "muted": "#8A94A6",
     "green": "#3DDC97",
+}
+
+NAV = [
+    ("overview", "Overview"),
+    ("quality", "Quality"),
+    ("health", "Machine Health"),
+    ("dq", "Data Quality"),
+]
+
+th_style = {
+    "textAlign": "left",
+    "padding": "8px 10px",
+    "borderBottom": f"1px solid {C['stroke']}",
+    "color": C["muted"],
+    "fontWeight": "600",
+}
+
+td_style = {
+    "textAlign": "left",
+    "padding": "7px 10px",
+    "borderBottom": f"1px solid {C['stroke']}",
+    "color": C["text"],
 }
 
 
@@ -46,14 +67,36 @@ def _latest_report() -> dict | None:
     return json.loads(reports[-1].read_text(encoding="utf-8"))
 
 
-def _load_silver_cmapss() -> pd.DataFrame:
-    return pd.read_parquet(
-        Path(__file__).resolve().parents[1] / "data" / "silver" / "fact_sensor_reading_cmapss.parquet"
+def _panel(title: str, graph) -> html.Div:
+    return html.Div(
+        [
+            html.Div(title, style={"color": C["muted"], "fontSize": "13px", "marginBottom": "6px"}),
+            graph,
+        ],
+        style={
+            "background": C["panel"],
+            "border": f"1px solid {C['stroke']}",
+            "borderRadius": "12px",
+            "padding": "12px",
+        },
     )
 
 
+def _nav_btn_style(active: bool) -> dict:
+    return {
+        "background": C["amber"] if active else "transparent",
+        "color": C["bg"] if active else C["text"],
+        "border": f"1px solid {C['amber'] if active else C['stroke']}",
+        "borderRadius": "8px",
+        "padding": "8px 14px",
+        "fontSize": "13px",
+        "fontWeight": "600",
+        "cursor": "pointer",
+    }
+
+
 # ---------------------------------------------------------------------------
-# Page builders
+# Pages
 # ---------------------------------------------------------------------------
 
 def _page_overview() -> html.Div:
@@ -116,18 +159,30 @@ def _page_overview() -> html.Div:
 
     return html.Div(
         [
-            html.Div(cards, style={"display": "grid", "gridTemplateColumns": "repeat(5, 1fr)", "gap": "12px"}),
+            html.Div(
+                cards,
+                style={
+                    "display": "grid",
+                    "gridTemplateColumns": "repeat(5, 1fr)",
+                    "gap": "12px",
+                },
+            ),
             html.Div(
                 [
                     _panel("Production units (accepted / rejected)", dcc.Graph(figure=fig_prod)),
-                    _panel(
-                        "Top failure modes (AI4I)",
-                        dcc.Graph(figure=fig_fail),
-                    ),
+                    _panel("Top failure modes (AI4I)", dcc.Graph(figure=fig_fail)),
                 ],
-                style={"display": "grid", "gridTemplateColumns": "3fr 2fr", "gap": "12px", "marginTop": "16px"},
+                style={
+                    "display": "grid",
+                    "gridTemplateColumns": "3fr 2fr",
+                    "gap": "12px",
+                    "marginTop": "16px",
+                },
             ),
-            _panel("Anomaly rate by source", dcc.Graph(figure=anomaly_overview_card(anomaly, C))),
+            _panel(
+                "Anomaly rate by source",
+                dcc.Graph(figure=anomaly_overview_card(anomaly, C)),
+            ),
         ]
     )
 
@@ -197,14 +252,19 @@ def _page_quality() -> html.Div:
                     _panel("Top defect types", dcc.Graph(figure=fig_def)),
                     _panel("Disposition mix", dcc.Graph(figure=fig_disp)),
                 ],
-                style={"display": "grid", "gridTemplateColumns": "2fr 1fr", "gap": "12px", "marginTop": "12px"},
+                style={
+                    "display": "grid",
+                    "gridTemplateColumns": "2fr 1fr",
+                    "gap": "12px",
+                    "marginTop": "12px",
+                },
             ),
         ]
     )
 
 
 def _page_health() -> html.Div:
-    cmapss = _load_silver_cmapss()
+    cmapss = pd.read_parquet(SILVER / "fact_sensor_reading_cmapss.parquet")
     anomaly = _load("fact_anomaly")
     maint = _load("fact_maintenance")
 
@@ -243,16 +303,26 @@ def _page_health() -> html.Div:
                     _panel("Anomaly score timeline", dcc.Graph(figure=fig_anom)),
                     _panel("Downtime estimate by failure mode", dcc.Graph(figure=fig_down)),
                 ],
-                style={"display": "grid", "gridTemplateColumns": "1fr 1fr", "gap": "12px", "marginTop": "12px"},
+                style={
+                    "display": "grid",
+                    "gridTemplateColumns": "1fr 1fr",
+                    "gap": "12px",
+                    "marginTop": "12px",
+                },
             ),
         ]
     )
 
 
 def _page_dq() -> html.Div:
+    import json
+
     report = _latest_report()
     if report is None:
-        return html.Div("No DQ report found. Run `python -m data_quality.pipeline`.", style={"color": C["muted"]})
+        return html.Div(
+            "No DQ report found. Run `python -m data_quality.pipeline`.",
+            style={"color": C["muted"]},
+        )
 
     rows = []
     for table, info in report["tables"].items():
@@ -268,7 +338,7 @@ def _page_dq() -> html.Div:
             )
     rules_df = pd.DataFrame(rows)
 
-    color_map = {"PASS": C["green"], "FAIL": C["red"], "warn": C["amber"], "error": C["red"]}
+    color_map = {"PASS": C["green"], "FAIL": C["red"]}
     fig = px.bar(
         rules_df.sort_values(["table", "rule"]),
         x="rule",
@@ -287,7 +357,12 @@ def _page_dq() -> html.Div:
     )
 
     score = report["overall_dq_score"]
-    score_color = C["green"] if score >= 0.99 else C["amber"] if score >= 0.95 else C["red"]
+    if score >= 0.99:
+        score_color = C["green"]
+    elif score >= 0.95:
+        score_color = C["amber"]
+    else:
+        score_color = C["red"]
 
     table_cards = []
     for table, info in report["tables"].items():
@@ -301,7 +376,11 @@ def _page_dq() -> html.Div:
                     ),
                     html.Div(
                         f"score {info['dq_score_error_rules']:.2f}",
-                        style={"color": score_color, "fontWeight": "600", "marginTop": "4px"},
+                        style={
+                            "color": score_color,
+                            "fontWeight": "600",
+                            "marginTop": "4px",
+                        },
                     ),
                 ],
                 style={
@@ -313,9 +392,6 @@ def _page_dq() -> html.Div:
             )
         )
 
-    passed = report["rules_passed"]
-    total = report["rules_total"]
-
     score_card = html.Div(
         [
             html.Div("Overall DQ Score", style={"color": C["muted"], "fontSize": "13px"}),
@@ -324,7 +400,7 @@ def _page_dq() -> html.Div:
                 style={"color": score_color, "fontSize": "42px", "fontWeight": "700"},
             ),
             html.Div(
-                f"{passed}/{total} rules passed",
+                f"{report['rules_passed']}/{report['rules_total']} rules passed",
                 style={"color": C["text"], "fontSize": "13px"},
             ),
             html.Div(
@@ -340,24 +416,70 @@ def _page_dq() -> html.Div:
         },
     )
 
-
-def _panel(title: str, graph) -> html.Div:
     return html.Div(
         [
-            html.Div(title, style={"color": C["muted"], "fontSize": "13px", "marginBottom": "6px"}),
-            graph,
+            html.Div(
+                [score_card],
+                style={"gridColumn": "1 / -1"},
+            ),
+            html.Div(
+                table_cards,
+                style={
+                    "display": "grid",
+                    "gridTemplateColumns": "repeat(3, 1fr)",
+                    "gap": "12px",
+                    "gridColumn": "1 / -1",
+                },
+            ),
+            _panel("Rule status", dcc.Graph(figure=fig)),
+            html.Table(
+                [
+                    html.Thead(
+                        html.Tr(
+                            [
+                                html.Th("Rule", style=th_style),
+                                html.Th("Table", style=th_style),
+                                html.Th("Severity", style=th_style),
+                                html.Th("Status", style=th_style),
+                            ]
+                        )
+                    ),
+                    html.Tbody(
+                        [
+                            html.Tr(
+                                [
+                                    html.Td(r["rule"], style=td_style),
+                                    html.Td(r["table"], style=td_style),
+                                    html.Td(r["severity"], style=td_style),
+                                    html.Td(
+                                        r["passed"],
+                                        style={
+                                            **td_style,
+                                            "color": C["green"]
+                                            if r["passed"] == "PASS"
+                                            else C["red"],
+                                            "fontWeight": "600",
+                                        },
+                                    ),
+                                ]
+                            )
+                            for r in rules_df.to_dict("records")
+                        ]
+                    ),
+                ],
+                style={"width": "100%", "borderCollapse": "collapse", "fontSize": "13px"},
+            ),
         ],
-        style={
-            "background": C["panel"],
-            "border": f"1px solid {C['stroke']}",
-            "borderRadius": "12px",
-            "padding": "12px",
-        },
+        style={"display": "grid", "gap": "16px"},
     )
 
 
 def anomaly_timeline(anomaly: pd.DataFrame, palette: dict) -> go.Figure:
     a = anomaly.copy()
+    if a.empty:
+        fig = go.Figure()
+        fig.update_layout(paper_bgcolor=palette["panel"], height=240)
+        return fig
     a["date"] = pd.to_datetime(a["event_time"]).dt.date
     rate = a.groupby(["date", "source"], as_index=False)["is_anomaly"].mean()
     fig = px.line(
@@ -380,31 +502,9 @@ def anomaly_timeline(anomaly: pd.DataFrame, palette: dict) -> go.Figure:
     return fig
 
 
-th_style = {
-    "textAlign": "left",
-    "padding": "8px 10px",
-    "borderBottom": f"1px solid {C['stroke']}",
-    "color": C["muted"],
-    "fontWeight": "600",
-}
-
-td_style = {
-    "textAlign": "left",
-    "padding": "7px 10px",
-    "borderBottom": f"1px solid {C['stroke']}",
-    "color": C["text"],
-}
-
 # ---------------------------------------------------------------------------
 # App shell
 # ---------------------------------------------------------------------------
-
-NAV = [
-    ("overview", "Overview"),
-    ("quality", "Quality"),
-    ("health", "Machine Health"),
-    ("dq", "Data Quality"),
-]
 
 app = Dash(
     __name__,
@@ -423,8 +523,18 @@ def _layout() -> html.Div:
                 [
                     html.Div(
                         [
-                            html.Span("FORGE", style={"fontWeight": "800", "letterSpacing": "0.12em"}),
-                            html.Span("IQ", style={"fontWeight": "800", "color": C["amber"], "letterSpacing": "0.12em"}),
+                            html.Span(
+                                "FORGE",
+                                style={"fontWeight": "800", "letterSpacing": "0.12em"},
+                            ),
+                            html.Span(
+                                "IQ",
+                                style={
+                                    "fontWeight": "800",
+                                    "color": C["amber"],
+                                    "letterSpacing": "0.12em",
+                                },
+                            ),
                         ],
                         style={"fontSize": "18px", "display": "flex", "gap": "2px"},
                     ),
@@ -438,7 +548,7 @@ def _layout() -> html.Div:
                                 label,
                                 id={"type": "nav", "index": key},
                                 n_clicks=0,
-                                style=nav_btn_style(False),
+                                style=_nav_btn_style(key == "overview"),
                             )
                             for key, label in NAV
                         ],
@@ -459,25 +569,15 @@ def _layout() -> html.Div:
             ),
         ],
         style={
-            "background": f"repeating-linear-gradient(135deg, {C['bg']}, {C['bg']} 40px, #151A21 40px, #151A21 80px)",
+            "background": (
+                f"repeating-linear-gradient(135deg, {C['bg']}, {C['bg']} 40px, "
+                "#151A21 40px, #151A21 80px)"
+            ),
             "minHeight": "100vh",
             "fontFamily": "'Segoe UI', system-ui, sans-serif",
             "color": C["text"],
         },
     )
-
-
-def nav_btn_style(active: bool) -> dict:
-    return {
-        "background": C["amber"] if active else "transparent",
-        "color": C["bg"] if active else C["text"],
-        "border": f"1px solid {C['amber'] if active else C['stroke']}",
-        "borderRadius": "8px",
-        "padding": "8px 14px",
-        "fontSize": "13px",
-        "fontWeight": "600",
-        "cursor": "pointer",
-    }
 
 
 app.layout = _layout()
@@ -502,9 +602,11 @@ PAGES = {
     Input({"type": "nav", "index": "dq"}, "n_clicks"),
     prevent_initial_call=True,
 )
-def _nav(o, q, h, d):
-    key = ctx.triggered_id["index"] if isinstance(ctx.triggered_id, dict) else "overview"
-    return key, *[nav_btn_style(key == k) for k, _ in NAV]
+def _nav(_o, _q, _h, _d):
+    key = "overview"
+    if isinstance(ctx.triggered_id, dict):
+        key = ctx.triggered_id.get("index", "overview")
+    return key, *[_nav_btn_style(key == k) for k, _ in NAV]
 
 
 @callback(

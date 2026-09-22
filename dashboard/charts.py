@@ -4,35 +4,21 @@ from __future__ import annotations
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from dash import html
 
 
-def quality_kpi_row(kmap: dict, palette: dict) -> list:
-    metrics = [
-        ("FPY", kmap.get("first_pass_yield"), "{:.1%}", palette["cyan"]),
-        ("Defect rate", kmap.get("defect_rate"), "{:.2%}", palette["red"]),
-        ("Scrap rate", kmap.get("scrap_rate"), "{:.1%}", palette["amber"]),
-        ("Failures", kmap.get("machine_failures_ai4i"), "{:,.0f}", palette["amber"]),
-        ("Downtime h", kmap.get("downtime_hours_estimated"), "{:,.0f}", palette["muted"]),
-    ]
-    cards = []
-    for label, row, fmt, color in metrics:
-        value = "—" if row is None else fmt.format(row.value)
-        status = "" if row is None or getattr(row, "status", "ok") == "ok" else " · est"
-        cards.append(
-            html_card(label, value + status, color, palette)
-        )
-    return cards
-
-
-def html_card(label: str, value: str, color: str, palette: dict):
-    from dash import html
-
+def html_card(label: str, value: str, color: str, palette: dict) -> html.Div:
     return html.Div(
         [
             html.Div(label, style={"color": palette["muted"], "fontSize": "12px"}),
             html.Div(
                 value,
-                style={"color": color, "fontSize": "26px", "fontWeight": "700", "marginTop": "4px"},
+                style={
+                    "color": color,
+                    "fontSize": "26px",
+                    "fontWeight": "700",
+                    "marginTop": "4px",
+                },
             ),
         ],
         style={
@@ -42,6 +28,27 @@ def html_card(label: str, value: str, color: str, palette: dict):
             "padding": "14px 16px",
         },
     )
+
+
+def quality_kpi_row(kmap: dict, palette: dict) -> list:
+    metrics = [
+        ("FPY", kmap.get("first_pass_yield"), "{:.1%}", palette["cyan"]),
+        ("Defect rate", kmap.get("defect_rate"), "{:.2%}", palette["red"]),
+        ("Scrap rate", kmap.get("scrap_rate"), "{:.1%}", palette["amber"]),
+        ("Failures", kmap.get("machine_failures_ai4i"), "{:,.0f}", palette["amber"]),
+        (
+            "Downtime h",
+            kmap.get("downtime_hours_estimated"),
+            "{:,.0f}",
+            palette["muted"],
+        ),
+    ]
+    cards = []
+    for label, row, fmt, color in metrics:
+        value = "—" if row is None else fmt.format(row.value)
+        status = "" if row is None or getattr(row, "status", "ok") == "ok" else " · est"
+        cards.append(html_card(label, value + status, color, palette))
+    return cards
 
 
 def anomaly_overview_card(anomaly: pd.DataFrame, palette: dict) -> go.Figure:

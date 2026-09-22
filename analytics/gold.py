@@ -166,6 +166,45 @@ def gold_tables() -> dict[str, pd.DataFrame]:
         ]
     )
 
+    # --- fact_anomaly (if anomaly outputs exist) ---
+    anomaly_frames = []
+    for src, path in [
+        ("ai4i", SILVER_DIR / "fact_anomaly_ai4i.parquet"),
+        ("cmapss", SILVER_DIR / "fact_anomaly_cmapss.parquet"),
+    ]:
+        if path.exists():
+            adf = pd.read_parquet(path)
+            adf["source"] = src
+            anomaly_frames.append(adf)
+
+    if anomaly_frames:
+        fact_anomaly = pd.concat(anomaly_frames, ignore_index=True, sort=False)
+        rate = fact_anomaly["is_anomaly"].mean()
+        kpi_summary = pd.concat(
+            [
+                kpi_summary,
+                pd.DataFrame(
+                    [
+                        {
+                            "kpi": "anomaly_rate",
+                            "value": round(float(rate), 6),
+                            "status": "ok",
+                        },
+                        {
+                            "kpi": "anomaly_events",
+                            "value": int(fact_anomaly["is_anomaly"].sum()),
+                            "status": "ok",
+                        },
+                    ]
+                ),
+            ],
+            ignore_index=True,
+        )
+    else:
+        fact_anomaly = pd.DataFrame(
+            columns=["machine_id", "event_time", "anomaly_score", "is_anomaly", "source"]
+        )
+
     return {
         "dim_date": dim_date,
         "dim_machine": dim_machine,
@@ -174,6 +213,7 @@ def gold_tables() -> dict[str, pd.DataFrame]:
         "fact_production": fact_production,
         "fact_quality": fact_quality,
         "fact_maintenance": fact_maintenance,
+        "fact_anomaly": fact_anomaly,
         "kpi_summary": kpi_summary,
     }
 

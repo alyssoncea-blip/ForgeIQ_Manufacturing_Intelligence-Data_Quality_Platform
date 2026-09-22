@@ -63,6 +63,7 @@ def test_gold_tables_present(gold):
         "fact_production",
         "fact_quality",
         "fact_maintenance",
+        "fact_anomaly",
         "kpi_summary",
     }
     assert set(gold) == expected
@@ -81,6 +82,24 @@ def test_gold_kpi_summary_values(gold):
     assert kpis["active_machines_cmapss"].value == 100
     assert kpis["machine_failures_ai4i"].value == 339
     assert kpis["downtime_hours_estimated"].status == "estimated"
+
+
+def test_gold_anomaly_kpis_if_present(gold):
+    kpis = {r.kpi: r for r in gold["kpi_summary"].itertuples()}
+    if len(gold["fact_anomaly"]) > 0:
+        assert "anomaly_rate" in kpis
+        assert 0 < kpis["anomaly_rate"].value < 1
+    else:
+        assert "anomaly_rate" not in kpis
+
+
+def test_gold_anomaly_kpis_if_present(gold):
+    kpis = {r.kpi: r for r in gold["kpi_summary"].itertuples()}
+    if len(gold["fact_anomaly"]) > 0:
+        assert "anomaly_rate" in kpis
+        assert 0 < kpis["anomaly_rate"].value < 1
+    else:
+        assert "anomaly_rate" not in kpis
 
 
 def test_gold_fact_maintenance_downtime_premise(gold):

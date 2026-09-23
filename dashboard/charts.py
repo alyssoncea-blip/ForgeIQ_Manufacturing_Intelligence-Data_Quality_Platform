@@ -7,92 +7,198 @@ import plotly.graph_objects as go
 from dash import html
 
 
-def html_card(label: str, value: str, color: str, palette: dict) -> html.Div:
+def _layout(fig: go.Figure, palette: dict, **kw) -> go.Figure:
+    fig.update_layout(
+        paper_bgcolor=palette["panel"],
+        plot_bgcolor=palette["panel"],
+        font=dict(color=palette["text"], family="Inter, sans-serif"),
+        legend=dict(orientation="h", bgcolor="rgba(0,0,0,0)"),
+        margin=dict(t=14, b=12, l=12, r=12),
+        **kw,
+    )
+    return fig
+
+
+def kpi_color(metric: str, value, palette: dict) -> str:
+    """Status band color: fail=red, danger/warn=amber, OK=cyan."""
+    if value is None:
+        return palette["muted"]
+    v = float(value)
+    if metric == "fpy":
+        if v >= 0.95:
+            return palette["cyan"]
+        if v >= 0.90:
+            return palette["amber"]
+        return palette["red"]
+    if metric == "defect_rate":
+        if v <= 0.05:
+            return palette["cyan"]
+        if v <= 0.10:
+            return palette["amber"]
+        return palette["red"]
+    if metric == "scrap_rate":
+        if v <= 0.02:
+            return palette["cyan"]
+        if v <= 0.05:
+            return palette["amber"]
+        return palette["red"]
+    if metric == "anomaly_rate":
+        if v <= 0.05:
+            return palette["cyan"]
+        if v <= 0.10:
+            return palette["amber"]
+        return palette["red"]
+    if metric == "failures":
+        return palette["red"]
+    if metric == "downtime":
+        return palette["amber"]
+    if metric == "dq_score":
+        if v >= 0.99:
+            return palette["cyan"]
+        if v >= 0.95:
+            return palette["amber"]
+        return palette["red"]
+    if metric in ("total_production", "units", "max_rul"):
+        return palette["cyan"]
+    return palette["text"]
+
+
+def kpi_tile(label: str, value: str, color: str) -> html.Div:
     return html.Div(
         [
-            html.Div(
-                label,
-                style={"color": palette["muted"], "fontSize": "12px"},
-            ),
-            html.Div(
-                value,
-                style={
-                    "color": color,
-                    "fontSize": "26px",
-                    "fontWeight": "700",
-                    "marginTop": "4px",
-                },
-            ),
+            html.Div(label.upper(), className="fiq-label"),
+            html.Div(value, className="fiq-value", style={"color": color}),
         ],
-        style={
-            "background": palette["panel"],
-            "border": f"1px solid {palette['stroke']}",
-            "borderRadius": "12px",
-            "padding": "14px 16px",
-        },
+        className="fiq-card fiq-kpi",
     )
 
 
-def quality_kpi_row(kmap: dict, palette: dict) -> list:
+def html_card(label: str, value: str, color: str, palette: dict) -> html.Div:
+    return kpi_tile(label, value, color)
+
+
+def quality_kpi_row(kpi: dict, palette: dict) -> list:
+    """KPI tiles with status-band colors (fail=red, warn=amber, ok=cyan)."""
     metrics = [
-        ("FPY", kmap.get("first_pass_yield"), "{:.1%}", palette["cyan"]),
-        ("Defect rate", kmap.get("defect_rate"), "{:.2%}", palette["red"]),
-        ("Scrap rate", kmap.get("scrap_rate"), "{:.1%}", palette["amber"]),
-        (
-            "Failures",
-            kmap.get("machine_failures_ai4i"),
-            "{:,.0f}",
-            palette["amber"],
-        ),
-        (
-            "Downtime h",
-            kmap.get("downtime_hours_estimated"),
-            "{:,.0f}",
-            palette["muted"],
-        ),
+        ("FPY", "fpy", kpi.get("fpy"), "{:.1%}"),
+        ("Defect rate", "defect_rate", kpi.get("defect_rate"), "{:.2%}"),
+        ("Scrap rate", "scrap_rate", kpi.get("scrap_rate"), "{:.1%}"),
+        ("Anomaly rate", "anomaly_rate", kpi.get("anomaly_rate"), "{:.2%}"),
+        ("Failure events", "failures", kpi.get("failures"), "{:,.0f}"),
+        ("Downtime h", "downtime", kpi.get("downtime"), "{:,.0f}"),
+        ("Total production", "total_production", kpi.get("total_production"), "{:,.0f}"),
     ]
     cards = []
-    for label, row, fmt, color in metrics:
-        value = "—" if row is None else fmt.format(row.value)
-        status = (
-            ""
-            if row is None or getattr(row, "status", "ok") == "ok"
-            else " · est"
-        )
-        cards.append(html_card(label, value + status, color, palette))
+    for label, metric, value, fmt in metrics:
+        text = "—" if value is None else fmt.format(value)
+        cards.append(kpi_tile(label, text, kpi_color(metric, value, palette)))
     return cards
+
+
+def anomaly_rate_figure(rate: pd.DataFrame, palette: dict, height: int = 280) -> go.Figure:
+    """Anomaly-rate lines: markers gradient amber->red for values > 0.
+
+    Exactly 0% stays cyan (within normal); any positive rate ramps from
+    amber (low) to red (high) across the visible data range.
+    """
+    if rate.empty:
+        fig = go.Figure()
+        fig.update_layout(
+            paper_bgcolor=palette["panel"],
+            height=height,
+            annotations=[
+                {
+                    "text": "No data for current filters",
+                    "showarrow": False,
+                    "font": {"color": palette["muted"]},
+                }
+            ],
+        )
+        return fig
+
+    vmax = float(rate["is_anomaly"].max())
+    if vmax <= 0:
+        vmax = 0.01
+    colorscale = [
+        [0.0, palette["cyan"]],
+        [1e-9, palette["amber"]],
+        [1.0, palette["red"]],
+    ]
+
+    fig = go.Figure()
+    first = True
+    for src, g in rate.groupby("source"):
+        g = g.sort_values("date")
+        vals = g["is_anomaly"].tolist()
+        fig.add_trace(
+            go.Scatter(
+                x=g["date"],
+                y=vals,
+                name=str(src),
+                mode="lines+markers",
+                line=dict(color="rgba(138, 148, 166, 0.45)", width=1.5),
+                marker=dict(
+                    color=vals,
+                    colorscale=colorscale,
+                    cmin=0.0,
+                    cmax=vmax,
+                    size=7,
+                    line=dict(width=0),
+                    showscale=first,
+                    colorbar=(
+                        dict(
+                            title="rate",
+                            tickformat=".0%",
+                            outlinewidth=0,
+                            bgcolor="rgba(0,0,0,0)",
+                            len=0.6,
+                        )
+                        if first
+                        else None
+                    ),
+                ),
+                hovertemplate=(
+                    "%{x|%Y-%m-%d}<br>rate %{y:.1%}<extra>"
+                    + str(src)
+                    + "</extra>"
+                ),
+            )
+        )
+        first = False
+
+    fig.update_layout(
+        paper_bgcolor=palette["panel"],
+        plot_bgcolor=palette["panel"],
+        font=dict(color=palette["text"], family="Inter, sans-serif"),
+        yaxis_tickformat=".1%",
+        legend=dict(orientation="h", bgcolor="rgba(0,0,0,0)"),
+        margin=dict(t=14, b=12, l=12, r=12),
+        height=height,
+        xaxis=dict(gridcolor=palette["stroke"], zeroline=False),
+        yaxis=dict(
+            gridcolor=palette["stroke"],
+            zeroline=False,
+            rangemode="tozero",
+        ),
+    )
+    return fig
 
 
 def anomaly_overview_card(anomaly: pd.DataFrame, palette: dict) -> go.Figure:
     a = anomaly.copy()
     if a.empty:
-        fig = go.Figure()
-        fig.update_layout(paper_bgcolor=palette["panel"], height=240)
-        return fig
+        return anomaly_rate_figure(a, palette, height=280)
     a["date"] = pd.to_datetime(a["event_time"]).dt.date
     rate = a.groupby(["date", "source"], as_index=False)["is_anomaly"].mean()
-    fig = px.line(
-        rate,
-        x="date",
-        y="is_anomaly",
-        color="source",
-        markers=True,
-        color_discrete_sequence=[palette["amber"], palette["cyan"]],
-    )
-    fig.update_layout(
-        paper_bgcolor=palette["panel"],
-        plot_bgcolor=palette["panel"],
-        font_color=palette["text"],
-        yaxis_tickformat=".1%",
-        legend=dict(orientation="h"),
-        margin=dict(t=10, b=10, l=10, r=10),
-        height=280,
-    )
-    return fig
+    return anomaly_rate_figure(rate, palette, height=280)
 
 
 def cmapss_health_card(cmapss: pd.DataFrame, palette: dict) -> go.Figure:
     """Mean RUL by cycle for a sample of units."""
+    if cmapss.empty:
+        fig = go.Figure()
+        fig.update_layout(paper_bgcolor=palette["panel"], height=240)
+        return fig
     sample = sorted(cmapss["unit_id"].unique())[:20]
     sub = cmapss[cmapss["unit_id"].isin(sample)]
     agg = sub.groupby("cycle", as_index=False)["rul"].mean()
@@ -106,16 +212,15 @@ def cmapss_health_card(cmapss: pd.DataFrame, palette: dict) -> go.Figure:
             fillcolor="rgba(77, 208, 225, 0.12)",
         )
     )
-    fig.update_layout(
-        paper_bgcolor=palette["panel"],
-        plot_bgcolor=palette["panel"],
-        font_color=palette["text"],
+    return _layout(
+        fig,
+        palette,
         xaxis_title="Cycle",
         yaxis_title="Mean RUL",
-        margin=dict(t=10, b=10, l=10, r=10),
         height=340,
+        xaxis=dict(gridcolor=palette["stroke"], zeroline=False),
+        yaxis=dict(gridcolor=palette["stroke"], zeroline=False),
     )
-    return fig
 
 
 def failure_modes_card(maint: pd.DataFrame, palette: dict) -> go.Figure:
@@ -130,16 +235,15 @@ def failure_modes_card(maint: pd.DataFrame, palette: dict) -> go.Figure:
         y=modes.index,
         orientation="h",
         labels={"x": "Failures", "y": ""},
-        color_discrete_sequence=[palette["amber"]],
+        color_discrete_sequence=[palette["red"]],
     )
-    fig.update_layout(
-        paper_bgcolor=palette["panel"],
-        plot_bgcolor=palette["panel"],
-        font_color=palette["text"],
-        margin=dict(t=10, b=10, l=10, r=10),
+    return _layout(
+        fig,
+        palette,
         height=300,
+        xaxis=dict(gridcolor=palette["stroke"], zeroline=False),
+        yaxis=dict(gridcolor=palette["stroke"], zeroline=False),
     )
-    return fig
 
 
 def line_fpy_card(production: pd.DataFrame, palette: dict) -> go.Figure:
@@ -150,18 +254,16 @@ def line_fpy_card(production: pd.DataFrame, palette: dict) -> go.Figure:
         y="first_pass_yield",
         color="line_id",
         markers=True,
-        color_discrete_sequence=[palette["cyan"], palette["amber"], palette["green"]],
+        color_discrete_sequence=[palette["cyan"], palette["amber"], palette["text"]],
     )
-    fig.update_layout(
-        paper_bgcolor=palette["panel"],
-        plot_bgcolor=palette["panel"],
-        font_color=palette["text"],
+    return _layout(
+        fig,
+        palette,
         yaxis_tickformat=".1%",
-        legend=dict(orientation="h"),
-        margin=dict(t=10, b=10, l=10, r=10),
         height=300,
+        xaxis=dict(gridcolor=palette["stroke"], zeroline=False),
+        yaxis=dict(gridcolor=palette["stroke"], zeroline=False),
     )
-    return fig
 
 
 def dq_overview_card(report: dict, palette: dict) -> go.Figure:
@@ -171,17 +273,14 @@ def dq_overview_card(report: dict, palette: dict) -> go.Figure:
         go.Bar(
             x=tables,
             y=scores,
-            marker_color=palette["green"],
+            marker_color=palette["cyan"],
             text=[f"{s:.2f}" for s in scores],
             textposition="outside",
         )
     )
-    fig.update_layout(
-        paper_bgcolor=palette["panel"],
-        plot_bgcolor=palette["panel"],
-        font_color=palette["text"],
-        yaxis=dict(range=[0, 1.1]),
-        margin=dict(t=10, b=10, l=10, r=10),
+    return _layout(
+        fig,
+        palette,
+        yaxis=dict(range=[0, 1.1], gridcolor=palette["stroke"], zeroline=False),
         height=260,
     )
-    return fig
